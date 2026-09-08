@@ -15,10 +15,10 @@ class NewsActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityNewsBinding
     private lateinit var viewModel: NewsViewModel
-    private val adapter = NewsAdapter { newsItem ->
+    private val newsAdapter = NewsAdapter { newsItem ->
         val intent = Intent(this, NewsDetailActivity::class.java).apply {
-            putExtra("EXTRA_TITLE", newsItem.title)
-            putExtra("EXTRA_URL", if (newsItem.url.isNotEmpty()) newsItem.url else "https://m.baidu.com")
+            putExtra("news_url", newsItem.url)
+            putExtra("news_title", newsItem.title)
         }
         startActivity(intent)
     }
@@ -28,54 +28,74 @@ class NewsActivity : AppCompatActivity() {
         binding = ActivityNewsBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        binding.recyclerViewNews.layoutManager = LinearLayoutManager(this)
-        binding.recyclerViewNews.adapter = adapter
+        supportActionBar?.title = "实时资讯"
+        supportActionBar?.setDisplayHomeAsUpEnabled(true)
 
+        initView()
+        initViewModel()
+    }
+
+    private fun initView() {
+        binding.recyclerView.apply {
+            layoutManager = LinearLayoutManager(this@NewsActivity)
+            adapter = newsAdapter
+        }
+
+        binding.swipeRefreshLayout.setOnRefreshListener {
+            viewModel.fetchRealNews()
+        }
+    }
+
+    private fun initViewModel() {
         viewModel = ViewModelProvider(this)[NewsViewModel::class.java]
 
-        // 监听数据改变并刷新列表
         viewModel.newsList.observe(this) { list ->
-            adapter.submitList(list)
-            binding.swipeRefreshLayout.isRefreshing = false
+            newsAdapter.submitList(list)
         }
 
-        // 下拉刷新事件
-        binding.swipeRefreshLayout.setOnRefreshListener {
-            viewModel.loadDataWithCache()
+        viewModel.isRefreshing.observe(this) { isRefreshing ->
+            binding.swipeRefreshLayout.isRefreshing = isRefreshing
         }
+    }
+
+    override fun onSupportNavigateUp(): Boolean {
+        onBackPressedDispatcher.onBackPressed()
+        return true
     }
 }
 
-// 补全 NewsAdapter 类定义
 class NewsAdapter(
     private val onItemClick: (NewsItem) -> Unit
-) : RecyclerView.Adapter<NewsAdapter.ViewHolder>() {
+) : RecyclerView.Adapter<NewsAdapter.NewsViewHolder>() {
 
-    private var items = emptyList<NewsItem>()
+    private val items = mutableListOf<NewsItem>()
 
-    fun submitList(newList: List<NewsItem>) {
-        items = newList
+    fun submitList(newItems: List<NewsItem>) {
+        items.clear()
+        items.addAll(newItems)
         notifyDataSetChanged()
     }
 
-    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): NewsViewHolder {
         val binding = ItemNewsBinding.inflate(LayoutInflater.from(parent.context), parent, false)
-        return ViewHolder(binding)
+        return NewsViewHolder(binding)
     }
 
-    override fun onBindViewHolder(holder: ViewHolder, position: Int) {
-        val item = items[position]
-        holder.bind(item)
-        holder.itemView.setOnClickListener { onItemClick(item) }
+    override fun onBindViewHolder(holder: NewsViewHolder, position: Int) {
+        holder.bind(items[position])
     }
 
     override fun getItemCount(): Int = items.size
 
-    class ViewHolder(private val binding: ItemNewsBinding) : RecyclerView.ViewHolder(binding.root) {
+    inner class NewsViewHolder(private val binding: ItemNewsBinding) : RecyclerView.ViewHolder(binding.root) {
         fun bind(item: NewsItem) {
             binding.tvTitle.text = item.title
             binding.tvSource.text = item.source
             binding.tvTime.text = item.time
+
+            binding.root.setOnClickListener {
+                onItemClick(item)
+            }
         }
     }
 }

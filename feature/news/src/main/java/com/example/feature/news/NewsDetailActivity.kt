@@ -16,18 +16,15 @@ class NewsDetailActivity : AppCompatActivity() {
         binding = ActivityNewsDetailBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        val title = intent.getStringExtra("EXTRA_TITLE") ?: "新闻详情"
-        val url = intent.getStringExtra("EXTRA_URL") ?: "https://m.baidu.com"
-
         supportActionBar?.title = title
         supportActionBar?.setDisplayHomeAsUpEnabled(true)
 
-        // 配置 WebView
+        val newsUrl = intent.getStringExtra("news_url") ?: "https://www.wanandroid.com"
         binding.webView.apply {
             settings.javaScriptEnabled = true
-            settings.domStorageEnabled = true // 允许网页 DOM 存储
-            webViewClient = WebViewClient() // 在 App 内打开链接，不调起外部浏览器
-            loadUrl(url)
+            settings.domStorageEnabled = true
+            webViewClient = android.webkit.WebViewClient()
+            loadUrl(newsUrl)
         }
     }
 

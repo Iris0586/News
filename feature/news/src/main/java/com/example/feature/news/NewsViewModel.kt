@@ -1,61 +1,93 @@
 package com.example.feature.news
 
 import android.app.Application
+import android.text.Html
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.viewModelScope
 import com.example.core.database.AppDatabase
 import com.example.core.database.NewsEntity
-import com.example.core.network.RetrofitClient
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
 class NewsViewModel(application: Application) : AndroidViewModel(application) {
 
+    // 若 AppDatabase 中的单例获取方法叫 getDatabase，请将 getInstance 改为 getDatabase
     private val newsDao = AppDatabase.getInstance(application).newsDao()
-    private val apiService = RetrofitClient.create(NewsApiService::class.java)
 
     private val _newsList = MutableLiveData<List<NewsItem>>()
     val newsList: LiveData<List<NewsItem>> = _newsList
 
+    private val _isRefreshing = MutableLiveData<Boolean>()
+    val isRefreshing: LiveData<Boolean> = _isRefreshing
+
     init {
-        loadDataWithCache()
+        loadLocalCache()
+        fetchRealNews()
     }
 
-    fun loadDataWithCache() {
+    private fun loadLocalCache() {
         viewModelScope.launch(Dispatchers.IO) {
-            // 1. 先读本地数据库缓存（秒开展示）
-            val localCache = newsDao.getAllNews().map {
-                NewsItem(it.id, it.title, it.source, it.time, it.url)
-            }
-            if (localCache.isNotEmpty()) {
-                _newsList.postValue(localCache)
-            }
-
-            // 2. 模拟网络延迟 2 秒
-            kotlinx.coroutines.delay(2000)
-
-            // 3. 模拟拉取到了带有【最新】标签的网络新数据
-            try {
-                val remoteData = listOf(
-                    NewsItem("1", "【最新】Android 15 模块化与 Compose 深度实践", "TechDaily", "10:30", ""),
-                    NewsItem("2", "【最新】Kotlin 协程 Flow 响应式编程全解析", "AndroidDev", "11:00", ""),
-                    NewsItem("3", "【最新】Jetpack Room 数据库三级离线缓存设计", "Architecture", "11:45", ""),
-                    NewsItem("4", "【最新】Retrofit + OkHttp 企业级网络层架构封装", "OpenSource", "12:15", ""),
-                    NewsItem("5", "【最新新增】组件化解耦架构演进指南", "Android官方", "14:00", "")
-                )
-
-                // 更新本地数据库
-                val entities = remoteData.map {
-                    NewsEntity(it.id, it.title, it.source, it.time, it.url)
+            val localList = newsDao.getAllNews()
+            if (localList.isNotEmpty()) {
+                val uiItems = localList.map { entity ->
+                    NewsItem(
+                        id = entity.id,
+                        title = entity.title,
+                        source = entity.source,
+                        time = entity.time,
+                        url = entity.url
+                    )
                 }
-                newsDao.insertNews(entities)
+                _newsList.postValue(uiItems)
+            }
+        }
+    }
 
-                // 更新 UI 界面
-                _newsList.postValue(remoteData)
+    fun fetchRealNews() {
+        _isRefreshing.value = true
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val response = NewsApiService.instance.getNewsArticles(page = 0)
+                if (response.errorCode == 0 && response.data != null) {
+                    val articles = response.data.datas
+
+                    val entities = articles.map { item ->
+                        val cleanTitle = Html.fromHtml(item.title, Html.FROM_HTML_MODE_LEGACY).toString()
+                        val authorName = when {
+                            !item.author.isNullOrEmpty() -> item.author
+                            !item.shareUser.isNullOrEmpty() -> item.shareUser
+                            else -> "资讯快讯"
+                        }
+                        NewsEntity(
+                            id = item.id.toString(), // 加上 .toString() 转为 String
+                            title = cleanTitle,
+                            source = authorName,
+                            time = item.niceDate ?: "刚刚",
+                            url = item.link
+                        )
+                    }
+
+                    // 直接使用 Dao 原有的 clearNews 与 insertNews 进行原子缓存重写
+                    newsDao.clearNews()
+                    newsDao.insertNews(entities)
+
+                    val uiItems = entities.map {
+                        NewsItem(
+                            id = it.id,
+                            title = it.title,
+                            source = it.source,
+                            time = it.time,
+                            url = it.url
+                        )
+                    }
+                    _newsList.postValue(uiItems)
+                }
             } catch (e: Exception) {
                 e.printStackTrace()
+            } finally {
+                _isRefreshing.postValue(false)
             }
         }
     }
