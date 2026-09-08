@@ -36,13 +36,31 @@ class NewsActivity : AppCompatActivity() {
     }
 
     private fun initView() {
+        val layoutManager = LinearLayoutManager(this)
         binding.recyclerView.apply {
-            layoutManager = LinearLayoutManager(this@NewsActivity)
+            this.layoutManager = layoutManager
             adapter = newsAdapter
+
+            // 监听列表滑动事件，在滑到底部前 3 条时自动静默加载下一页
+            addOnScrollListener(object : RecyclerView.OnScrollListener() {
+                override fun onScrolled(recyclerView: RecyclerView, dx: Int, dy: Int) {
+                    super.onScrolled(recyclerView, dx, dy)
+                    if (dy > 0) {
+                        val visibleItemCount = layoutManager.childCount
+                        val totalItemCount = layoutManager.itemCount
+                        val firstVisibleItemPosition = layoutManager.findFirstVisibleItemPosition()
+
+                        if ((visibleItemCount + firstVisibleItemPosition) >= totalItemCount - 3) {
+                            viewModel.loadMoreNews()
+                        }
+                    }
+                }
+            })
         }
 
+        // 下拉刷新触发重置加载
         binding.swipeRefreshLayout.setOnRefreshListener {
-            viewModel.fetchRealNews()
+            viewModel.refreshNews()
         }
     }
 
