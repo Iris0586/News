@@ -7,7 +7,7 @@ import retrofit2.converter.gson.GsonConverterFactory
 import java.util.concurrent.TimeUnit
 
 /**
- * 核心亮点：全局统一的网络层 Retrofit 客户端封装
+ 全局统一的网络层 Retrofit 客户端封装
  */
 object RetrofitClient {
 
