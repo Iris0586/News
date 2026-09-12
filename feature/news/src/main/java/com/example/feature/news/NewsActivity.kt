@@ -28,6 +28,7 @@ class NewsActivity : AppCompatActivity() {
         binding = ActivityNewsBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
+        setSupportActionBar(binding.toolbar)
         supportActionBar?.title = "实时资讯"
         supportActionBar?.setDisplayHomeAsUpEnabled(true)
 

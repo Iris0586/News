@@ -17,6 +17,7 @@ class WeatherActivity : AppCompatActivity() {
         binding = ActivityWeatherBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
+        setSupportActionBar(binding.toolbar)
         supportActionBar?.title = "实时天气"
         supportActionBar?.setDisplayHomeAsUpEnabled(true)
 
