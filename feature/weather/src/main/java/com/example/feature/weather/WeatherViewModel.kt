@@ -47,7 +47,7 @@ class WeatherViewModel(application: Application) : AndroidViewModel(application)
     }
 }
 
-// 确保最底部的这个 sealed class 没有被漏掉
+
 sealed class WeatherUiState {
     object Loading : WeatherUiState()
     data class Success(val cityName: String, val data: WeatherNow) : WeatherUiState()
