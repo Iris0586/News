@@ -1,13 +1,12 @@
 package com.example.feature.news
 
-import retrofit2.Retrofit
-import retrofit2.converter.gson.GsonConverterFactory
+import com.example.core.network.RetrofitClient
 import retrofit2.http.GET
 import retrofit2.http.Path
 
 interface NewsApiService {
 
-    // 获取真实的新闻/文章列表（支持分页，0 代表第一页，对的就是0，对的对的）
+    // 获取真实的新闻/文章列表（支持分页，0 代表第一页）
     @GET("article/list/{page}/json")
     suspend fun getNewsArticles(
         @Path("page") page: Int = 0
@@ -16,12 +15,9 @@ interface NewsApiService {
     companion object {
         private const val BASE_URL = "https://www.wanandroid.com/"
 
+        // 只声明自己的域名，客户端构建交给 core:network 统一处理
         val instance: NewsApiService by lazy {
-            Retrofit.Builder()
-                .baseUrl(BASE_URL)
-                .addConverterFactory(GsonConverterFactory.create())
-                .build()
-                .create(NewsApiService::class.java)
+            RetrofitClient.create(BASE_URL, NewsApiService::class.java)
         }
     }
 }

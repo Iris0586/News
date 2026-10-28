@@ -7,34 +7,52 @@ import retrofit2.converter.gson.GsonConverterFactory
 import java.util.concurrent.TimeUnit
 
 /**
- 全局统一的网络层 Retrofit 客户端封装
+ * 全局唯一的网络客户端工厂。
+ *
+ * 职责边界：
+ * 1. 只负责 OkHttpClient 的共享与 Retrofit 的构建，**不感知任何业务域名**；
+ *    baseUrl 由各 feature 自己声明（域名属于业务，基础库不该知道）。
+ * 2. 全项目复用同一个 OkHttpClient：连接池、线程池、DNS 缓存都挂在 client 上，
+ *    多个 Retrofit / Service 共享它才能真正复用这些资源。
  */
 object RetrofitClient {
 
-    private const val BASE_URL = "https://v2.alapi.cn/api/" // 聚合新闻/天气测试 API 基地址
     private const val TIMEOUT_SECONDS = 15L
 
-    private val okHttpClient: OkHttpClient by lazy {
-        val loggingInterceptor = HttpLoggingInterceptor().apply {
-            level = HttpLoggingInterceptor.Level.BODY // 开发阶段开启完整日志输出
-        }
+    /** 整个请求（含重试、重定向）的总超时，避免单次调用无限等待 */
+    private const val CALL_TIMEOUT_SECONDS = 30L
 
+    /** 按 baseUrl 缓存 Retrofit：不同业务域名各自一个实例，但共享同一个 client */
+    private val retrofitCache = HashMap<String, Retrofit>()
+
+    private val okHttpClient: OkHttpClient by lazy {
         OkHttpClient.Builder()
             .connectTimeout(TIMEOUT_SECONDS, TimeUnit.SECONDS)
             .readTimeout(TIMEOUT_SECONDS, TimeUnit.SECONDS)
-            .addInterceptor(loggingInterceptor)
+            .writeTimeout(TIMEOUT_SECONDS, TimeUnit.SECONDS)
+            .callTimeout(CALL_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+            .apply {
+                // 只在 debug 包挂日志拦截器，release 不把请求体打进 logcat
+                if (BuildConfig.DEBUG) {
+                    addInterceptor(
+                        HttpLoggingInterceptor().apply {
+                            level = HttpLoggingInterceptor.Level.BODY
+                        }
+                    )
+                }
+            }
             .build()
     }
 
-    private val retrofit: Retrofit by lazy {
-        Retrofit.Builder()
-            .baseUrl(BASE_URL)
-            .client(okHttpClient)
-            .addConverterFactory(GsonConverterFactory.create())
-            .build()
-    }
+    fun <T> create(baseUrl: String, service: Class<T>): T = retrofit(baseUrl).create(service)
 
-    fun <T> create(serviceClass: Class<T>): T {
-        return retrofit.create(serviceClass)
+    private fun retrofit(baseUrl: String): Retrofit = synchronized(retrofitCache) {
+        retrofitCache.getOrPut(baseUrl) {
+            Retrofit.Builder()
+                .baseUrl(baseUrl)
+                .client(okHttpClient)
+                .addConverterFactory(GsonConverterFactory.create())
+                .build()
+        }
     }
 }

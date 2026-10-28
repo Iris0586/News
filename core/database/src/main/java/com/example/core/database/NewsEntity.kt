@@ -10,4 +10,5 @@ data class NewsEntity(
     val source: String,
     val time: String,
     val url: String
+
 )

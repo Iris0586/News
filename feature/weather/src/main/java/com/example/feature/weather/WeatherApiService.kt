@@ -1,7 +1,6 @@
 package com.example.feature.weather
 
-import retrofit2.Retrofit
-import retrofit2.converter.gson.GsonConverterFactory
+import com.example.core.network.RetrofitClient
 import retrofit2.http.GET
 import retrofit2.http.Query
 
@@ -18,12 +17,9 @@ interface WeatherApiService {
         // API Host 填入
         private const val BASE_URL = ""
 
+        // 只声明自己的域名，客户端构建交给 core:network 统一处理
         val instance: WeatherApiService by lazy {
-            Retrofit.Builder()
-                .baseUrl(BASE_URL)
-                .addConverterFactory(GsonConverterFactory.create())
-                .build()
-                .create(WeatherApiService::class.java)
+            RetrofitClient.create(BASE_URL, WeatherApiService::class.java)
         }
     }
 }
